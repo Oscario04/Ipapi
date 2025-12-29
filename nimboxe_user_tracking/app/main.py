@@ -1,13 +1,22 @@
+def serialize_datetimes(obj):
+    if isinstance(obj, dict):
+        return {k: serialize_datetimes(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [serialize_datetimes(item) for item in obj]
+    elif isinstance(obj, datetime):
+        return obj.isoformat()
+    else:
+        return obj
 from fastapi import FastAPI
-from app.models.user import UserVisit
-from app.db.mongodb import collection
+from Ipapi.nimboxe_user_tracking.app.models.user import UserVisit
+from Ipapi.nimboxe_user_tracking.app.db.mongodb import collection
 from datetime import datetime
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from app.wasabi import upload_user_data
+from Ipapi.nimboxe_user_tracking.app.wasabi import upload_user_data
+import os
 
 app = FastAPI()
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],   # Permite cualquier origen, o reemplaza con tu dominio
@@ -15,15 +24,26 @@ app.add_middleware(
     allow_headers=["*"],   # Permite cualquier header
 )
 # Montar carpeta static
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
+static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static'))
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.get("/all-users")
 async def get_all_users():
+    print("[DEBUG] Iniciando consulta de usuarios en MongoDB...")
     users = []
     async for doc in collection.find():
-        doc["_id"] = str(doc["_id"])  # convierte ObjectId a string para JSON
+        print(f"[DEBUG] Documento encontrado: {doc}")
+        doc["_id"] = str(doc["_id"])
         users.append(doc)
+        try:
+            serializable_doc = serialize_datetimes(doc)
+            print(f"[DEBUG] Subiendo usuario a Wasabi: {serializable_doc}")
+            upload_user_data(serializable_doc)
+            print("[DEBUG] Subida exitosa a Wasabi")
+        except Exception as e:
+            print(f"[ERROR] Fallo al subir a Wasabi: {e}")
+    print(f"[DEBUG] Total usuarios encontrados: {len(users)}")
     return users
 
 @app.post("/track")

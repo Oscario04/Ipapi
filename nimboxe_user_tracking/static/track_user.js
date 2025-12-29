@@ -11,7 +11,7 @@ async function trackUser(path = window.location.pathname) {
       city: data.city,
       region: data.region,
       postal: data.postal,
-      country: data.country_name,  // backend espera 'country'
+      country: data.country_name,  
       timezone: data.timezone,
       org: data.org,
       path: path,
